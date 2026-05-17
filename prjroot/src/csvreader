@@ -1,0 +1,80 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <locale>
+#include <codecvt>
+
+class CSVReader {
+public:
+    CSVReader(const std::string& filename) : filename_(filename) {}
+
+    bool ReadCSV(std::vector<std::vector<std::string>>& data) {
+        std::ifstream file(filename_);
+        if (!file.is_open()) {
+            std::cerr << "Failed to open file: " << filename_ << std::endl;
+            return false;
+        }
+
+        std::string line;
+        while (std::getline(file, line)) {
+            // 自動的にエンコーディングを検出して変換
+            std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> utf8_converter;
+            std::wstring_convert<std::codecvt<wchar_t, char, std::mbstate_t>> sjis_converter;
+            std::wstring wline;
+
+            try {
+                wline = utf8_converter.from_bytes(line);
+            } catch (const std::exception& e) {
+                try {
+                    wline = sjis_converter.from_bytes(line);
+                } catch (const std::exception& e) {
+                    std::cerr << "Failed to convert line to UTF-8 or Shift-JIS: " << e.what() << std::endl;
+                    return false;
+                }
+            }
+
+            // CSVデータをパースして格納
+            std::vector<std::string> row;
+            std::wstring cell;
+            bool inQuotes = false;
+
+            for (wchar_t c : wline) {
+                if (c == L'"') {
+                    inQuotes = !inQuotes;
+                } else if (c == L',' && !inQuotes) {
+                    row.push_back(utf8_converter.to_bytes(cell));
+                    cell.clear();
+                } else {
+                    cell += c;
+                }
+            }
+
+            row.push_back(utf8_converter.to_bytes(cell));
+            data.push_back(row);
+        }
+
+        file.close();
+        return true;
+    }
+
+private:
+    std::string filename_;
+};
+
+// int main() {
+//     std::vector<std::vector<std::string>> csvData;
+//     CSVReader reader("example.csv");
+
+//     if (reader.ReadCSV(csvData)) {
+//         // データを使って何かを行う
+//         for (const auto& row : csvData) {
+//             for (const auto& cell : row) {
+//                 std::cout << cell << "\t";
+//             }
+//             std::cout << std::endl;
+//         }
+//     }
+
+//     return 0;
+// }
